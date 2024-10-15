@@ -8,6 +8,7 @@
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.7.7",
     "browserify-zlib": "^0.2.0",
+    "dat.gui": "^0.7.9",
     "js-cookie": "^3.0.5",
     "next-auth": "^4.24.8",
     "openai": "^4.67.0",
@@ -15,6 +16,8 @@
     "react-dom": "^18.3.1",
     "react-media-recorder": "^1.7.1",
     "react-scripts": "^5.0.1",
+    "three": "^0.169.0",
+    "wavesurfer.js": "^7.8.6",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
