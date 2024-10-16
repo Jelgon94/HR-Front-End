@@ -7,7 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
 
-const CircularAudioVisualizer = () => {
+const CircularAudioVisualizer = ({ audioUrl }) => {
   const mountRef = useRef(null);
 
   useEffect(() => {
@@ -16,9 +16,12 @@ const CircularAudioVisualizer = () => {
     mountRef.current.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, -2, 14);
-    camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
 
     const params = {
       red: 1.0,
@@ -30,6 +33,7 @@ const CircularAudioVisualizer = () => {
     };
 
     const renderScene = new RenderPass(scene, camera);
+
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight));
     bloomPass.threshold = params.threshold;
     bloomPass.strength = params.strength;
@@ -38,16 +42,19 @@ const CircularAudioVisualizer = () => {
     const bloomComposer = new EffectComposer(renderer);
     bloomComposer.addPass(renderScene);
     bloomComposer.addPass(bloomPass);
-
+    
     const outputPass = new OutputPass();
     bloomComposer.addPass(outputPass);
+
+    camera.position.set(0, -2, 14);
+    camera.lookAt(0, 0, 0);
 
     const uniforms = {
       u_time: { type: 'f', value: 0.0 },
       u_frequency: { type: 'f', value: 0.0 },
-      u_red: { type: 'f', value: 1.0 },
-      u_green: { type: 'f', value: 1.0 },
-      u_blue: { type: 'f', value: 1.0 },
+      u_red: { type: 'f', value: params.red },
+      u_green: { type: 'f', value: params.green },
+      u_blue: { type: 'f', value: params.blue },
     };
 
     const mat = new THREE.ShaderMaterial({
@@ -65,48 +72,25 @@ const CircularAudioVisualizer = () => {
     camera.add(listener);
 
     const sound = new THREE.Audio(listener);
+
     const audioLoader = new THREE.AudioLoader();
-    audioLoader.load('./assets/Beats.mp3', (buffer) => {
+    audioLoader.load(audioUrl, function (buffer) {
       sound.setBuffer(buffer);
-      window.addEventListener('click', () => {
-        sound.play();
-      });
+      sound.play();
     });
 
     const analyser = new THREE.AudioAnalyser(sound, 32);
-    const gui = new GUI();
-    const colorsFolder = gui.addFolder('Colors');
-    colorsFolder.add(params, 'red', 0, 1).onChange((value) => {
-      uniforms.u_red.value = Number(value);
-    });
-    colorsFolder.add(params, 'green', 0, 1).onChange((value) => {
-      uniforms.u_green.value = Number(value);
-    });
-    colorsFolder.add(params, 'blue', 0, 1).onChange((value) => {
-      uniforms.u_blue.value = Number(value);
-    });
-
-    const bloomFolder = gui.addFolder('Bloom');
-    bloomFolder.add(params, 'threshold', 0, 1).onChange((value) => {
-      bloomPass.threshold = Number(value);
-    });
-    bloomFolder.add(params, 'strength', 0, 3).onChange((value) => {
-      bloomPass.strength = Number(value);
-    });
-    bloomFolder.add(params, 'radius', 0, 1).onChange((value) => {
-      bloomPass.radius = Number(value);
-    });
 
     const clock = new THREE.Clock();
-    const animate = () => {
+    function animate() {
       uniforms.u_time.value = clock.getElapsedTime();
       uniforms.u_frequency.value = analyser.getAverageFrequency();
       bloomComposer.render();
       requestAnimationFrame(animate);
-    };
+    }
     animate();
 
-    window.addEventListener('resize', () => {
+    window.addEventListener('resize', function () {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -114,9 +98,9 @@ const CircularAudioVisualizer = () => {
     });
 
     return () => {
-      mountRef.current.removeChild(renderer.domElement);
+      mountRef.current.removeChild(renderer.domElement); // Cleanup
     };
-  }, []);
+  }, [audioUrl]);
 
   return <div ref={mountRef} />;
 };
