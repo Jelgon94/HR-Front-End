@@ -29,14 +29,14 @@ function App() {
   const startConversation = async () => {
     try {
       // Start a new session
-      const sessionResponse = await axios.post('http://localhost:5000/api/start_session', {
+      const sessionResponse = await axios.post('https://beasy.ai/api/start_session', {
         password: password, // Use the password from the input
       });
       const { session_id } = sessionResponse.data;
       setSessionId(session_id);
 
       // Get the initial question
-      const response = await axios.get('http://localhost:5000/api/initial_question', {
+      const response = await axios.get('https://beasy.ai/api/initial_question', {
         params: { session_id },
       });
       const { question, speech_file_url } = response.data;
@@ -45,7 +45,7 @@ function App() {
 
       // Play the initial question's audio
       if (speech_file_url) {
-        await playAudio(`http://localhost:5000${speech_file_url}`);
+        await playAudio(`https://beasy.ai${speech_file_url}`);
       } else {
         console.error('No valid speech file URL returned from server');
       }
@@ -66,7 +66,7 @@ function App() {
 
     try {
       setIsProcessing(true); // Disable the button while processing
-      const response = await axios.post('http://localhost:5000/api/conversation', formData, {
+      const response = await axios.post('https://beasy.ai/api/conversation', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -82,7 +82,7 @@ function App() {
       // Play the generated response
       if (speech_file_url) {
         console.log('Playing response audio:', speech_file_url);
-        await playAudio(`http://localhost:5000${speech_file_url}`);
+        await playAudio(`https://beasy.ai${speech_file_url}`);
       } else {
         console.error('No valid speech file URL returned from server');
       }
@@ -95,13 +95,13 @@ function App() {
 
   const stopConversation = async () => {
     try {
-      const response = await axios.post('http://localhost:5000/api/stop_conversation', {
+      const response = await axios.post('https://beasy.ai/api/stop_conversation', {
         session_id: sessionId,
       });
       const { summary_file } = response.data;
 
       setConversationFinished(true);
-      setSummaryFileUrl(`http://localhost:5000/${summary_file}`);
+      setSummaryFileUrl(`https://beasy.ai/${summary_file}`);
 
       console.log("Conversation stopped and summary generated:", summary_file);
     } catch (error) {
