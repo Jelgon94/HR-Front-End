@@ -10,13 +10,19 @@ function App() {
   const [sessionId, setSessionId] = useState(null);
   const [password, setPassword] = useState(''); // State for password input
   const [isRecording, setIsRecording] = useState(false); // State to track recording status
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false); // State to track audio playback status
+  const [isProcessing, setIsProcessing] = useState(false); // State to track AI processing status
 
   // Function to play an audio file given its URL
   const playAudio = (audioUrl) => {
     return new Promise((resolve, reject) => {
       const audio = new Audio(audioUrl);
+      setIsPlayingAudio(true); // Set playback status to true
       audio.play().then(resolve).catch(reject);
-      audio.onended = resolve;
+      audio.onended = () => {
+        setIsPlayingAudio(false); // Reset playback status when audio finishes
+        resolve();
+      };
     });
   };
 
@@ -59,6 +65,7 @@ function App() {
     formData.append('session_id', sessionId);
 
     try {
+      setIsProcessing(true); // Disable the button while processing
       const response = await axios.post('http://localhost:5000/api/conversation', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -81,6 +88,8 @@ function App() {
       }
     } catch (error) {
       console.error('Error sending audio to the server:', error);
+    } finally {
+      setIsProcessing(false); // Re-enable the button when processing and playback are finished
     }
   };
 
@@ -140,6 +149,7 @@ function App() {
                   }
                   setIsRecording(!isRecording); // Toggle recording state
                 }}
+                disabled={isPlayingAudio || isProcessing} // Disable button when AI is playing audio or processing
               >
                 {isRecording ? 'Stop & Send Audio' : 'Start Talking'}
               </button>
