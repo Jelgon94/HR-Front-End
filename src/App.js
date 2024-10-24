@@ -27,7 +27,7 @@ function App() {
   // Maak nieuwe sessie aan
   const createSession = async () => {
     try {
-      const sessionResponse = await axios.post('http://localhost:5000/api/start_session', {
+      const sessionResponse = await axios.post('https://beasy.ai/api/start_session', {
         password: password,
       });
       const { session_id } = sessionResponse.data;
@@ -43,7 +43,7 @@ function App() {
 
   const validateSessionId = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/validate_session', {
+      const response = await axios.get('https://beasy.ai/api/validate_session', {
         params: { session_id: sessionId }
       });
       if (response.data.valid) {
@@ -66,13 +66,13 @@ function App() {
         console.error("Session ID is required to start conversation");
         return;
       }
-      const response = await axios.get('http://localhost:5000/api/initial_question', { params: { session_id: sessionId } });
+      const response = await axios.get('https://beasy.ai/api/initial_question', { params: { session_id: sessionId } });
       const { question, speech_file_url } = response.data;
       setAiResponse(question);
       setConversationStarted(true);
 
       if (speech_file_url) {
-        await playAudio(`http://localhost:5000${speech_file_url}`);
+        await playAudio(`https://beasy.ai${speech_file_url}`);
       }
     } catch (error) {
       console.error('Error starting conversation:', error);
@@ -81,13 +81,13 @@ function App() {
 
   const stopConversation = async () => {
     try {
-      const response = await axios.post('http://localhost:5000/api/stop_conversation', {
+      const response = await axios.post('https://beasy.ai/api/stop_conversation', {
         session_id: sessionId,
       });
       const { summary_file } = response.data;
 
       setConversationFinished(true);
-      setSummaryFileUrl(`http://localhost:5000/${summary_file}`);
+      setSummaryFileUrl(`https://beasy.ai/${summary_file}`);
     } catch (error) {
       console.error('Error stopping the conversation:', error);
     }
