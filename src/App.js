@@ -141,35 +141,47 @@ function App() {
 
   const renderSessionIdStep = () => (
     <VStack spacing={4}>
-      <Text fontSize="lg">Voer uw sessie-ID in om verder te gaan:</Text>
+      <Text fontSize="lg" color="white">Voer uw sessie-ID in om verder te gaan:</Text>
       <input
         type="text"
         value={sessionId}
         onChange={(e) => setSessionId(e.target.value)}
         placeholder="Sessie-ID"
-        style={{ padding: '10px', fontSize: '16px' }}
+        style={{ 
+          padding: '10px', 
+          fontSize: '16px', 
+          backgroundColor: 'black', 
+          color: 'white'
+        }}
       />
-      <Text fontSize="lg">Of voer het master wachtwoord in voor een nieuwe sessie aan te maken:</Text>
+      <Text fontSize="lg" color="white">Of voer het master wachtwoord in voor een nieuwe sessie aan te maken:</Text>
       <input
         type="password"
         placeholder="Voer wachtwoord in"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        style={{ marginBottom: '10px', fontSize: '16px' }}
+        style={{ 
+          marginBottom: '10px', 
+          fontSize: '16px', 
+          backgroundColor: 'black', 
+          color: 'white'
+        }}
       />
       <Button colorScheme="blue" onClick={createSession} isDisabled={!password}>
         Maak Sessie aan
       </Button>
+  
       {sessionId && sessionIdValid && (
         <Text color="green.400">Sessie succesvol aangemaakt! Sessie-ID: {sessionId}</Text>
       )}
       {sessionIdError && <Text color="red.400">{sessionIdError}</Text>}
-
+  
       <Button colorScheme="blue" onClick={validateSessionId} disabled={!sessionId}>
         Volgende
       </Button>
     </VStack>
   );
+  
 
   const renderTermsStep = () => (
     <VStack spacing={4}>
