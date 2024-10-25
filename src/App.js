@@ -244,6 +244,7 @@ const toggleMicrophone = (deviceId = selectedAudioDevice) => {
 
       <Checkbox
         isChecked={agreedToTerms}
+        color={'white'}
         onChange={(e) => setAgreedToTerms(e.target.checked)}
         colorScheme="blue"
       >
