@@ -1,30 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { ChakraProvider, Box, Button, Text, IconButton, VStack, HStack, Flex, Checkbox, Select } from '@chakra-ui/react';
 import { FaMicrophone, FaVideo } from 'react-icons/fa';
+import { ReactMediaRecorder } from 'react-media-recorder';
 import axios from 'axios';
 
 function App() {
-  const [step, setStep] = useState(0);
-  const [sessionId, setSessionId] = useState('');
-  const [password, setPassword] = useState('');
-  const [language, setLanguage] = useState('EN');
-  const [cameraOn, setCameraOn] = useState(false);
-  const [microphoneOn, setMicrophoneOn] = useState(false);
-  const [conversationStarted, setConversationStarted] = useState(false);
-  const [aiResponse, setAiResponse] = useState(null);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [sessionIdValid, setSessionIdValid] = useState(false);
-  const [sessionIdError, setSessionIdError] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [conversationFinished, setConversationFinished] = useState(false);
-  const [summaryFileUrl, setSummaryFileUrl] = useState('');
-  const [cameraStream, setCameraStream] = useState(null);
-  const [videoDevices, setVideoDevices] = useState([]);
-  const [audioDevices, setAudioDevices] = useState([]);
-  const [selectedVideoDevice, setSelectedVideoDevice] = useState(null);
-  const [selectedAudioDevice, setSelectedAudioDevice] = useState(null);
+  const [step, setStep] = useState(0); // Tracks the current step in the UI
+  const [sessionId, setSessionId] = useState(''); // Session ID for the interview
+  const [password, setPassword] = useState(''); // Password for creating a new session
+  const [language, setLanguage] = useState('EN'); // Language selection
+  const [cameraOn, setCameraOn] = useState(false); // Toggles camera state
+  const [microphoneOn, setMicrophoneOn] = useState(false); // Toggles microphone state
+  const [conversationStarted, setConversationStarted] = useState(false); // Tracks if the conversation has started
+  const [aiResponse, setAiResponse] = useState(null); // Stores AI's question/response
+  const [agreedToTerms, setAgreedToTerms] = useState(false); // Terms acceptance
+  const [sessionIdValid, setSessionIdValid] = useState(false); // Validates session ID
+  const [sessionIdError, setSessionIdError] = useState(''); // Stores session validation error
+  const [isProcessing, setIsProcessing] = useState(false); // Processing state for audio send
+  const [conversationFinished, setConversationFinished] = useState(false); // Tracks if conversation is finished
+  const [summaryFileUrl, setSummaryFileUrl] = useState(''); // URL of the conversation summary
+  const [cameraStream, setCameraStream] = useState(null); // Camera stream state
+  const [videoDevices, setVideoDevices] = useState([]); // List of video input devices
+  const [audioDevices, setAudioDevices] = useState([]); // List of audio input devices
+  const [isRecording, setIsRecording] = useState(false); // Tracks if recording is active
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false); // Tracks if AI's audio response is playing
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState(null); // Selected video input device
+  const [selectedAudioDevice, setSelectedAudioDevice] = useState(null); // Selected audio input device
+  const [microphoneStream, setMicrophoneStream] = useState(null);
 
-  // Maak nieuwe sessie aan
+  // Creates a new session by calling the backend
   const createSession = async () => {
     try {
       const sessionResponse = await axios.post('https://beasy.ai/api/start_session', {
@@ -41,6 +45,7 @@ function App() {
     }
   };
 
+  // Validates the session ID entered by the user
   const validateSessionId = async () => {
     try {
       const response = await axios.get('https://beasy.ai/api/validate_session', {
@@ -49,7 +54,7 @@ function App() {
       if (response.data.valid) {
         setSessionIdValid(true);
         setSessionIdError('');
-        setStep(1);
+        setStep(1); // Move to the next step
       } else {
         setSessionIdError('Sessie-ID niet gevonden in de database.');
         setSessionIdValid(false);
@@ -60,6 +65,7 @@ function App() {
     }
   };
 
+  // Starts the conversation with the AI, fetching the first question
   const startConversation = async () => {
     try {
       if (!sessionId) {
@@ -79,6 +85,7 @@ function App() {
     }
   };
 
+  // Stops the conversation and fetches the summary
   const stopConversation = async () => {
     try {
       const response = await axios.post('https://beasy.ai/api/stop_conversation', {
@@ -93,52 +100,100 @@ function App() {
     }
   };
 
+  // Sends the recorded audio to the backend for transcription and AI response
+  const handleSendAudio = async (audioBlob) => {
+    if (!sessionId) {
+      console.error('Session ID is not set');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'audio.wav');
+    formData.append('session_id', sessionId);
+
+    try {
+      setIsProcessing(true);
+      const response = await axios.post('https://beasy.ai/api/conversation', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const { transcribed_text, gpt_response, speech_file_url } = response.data;
+      setAiResponse(gpt_response);
+
+      if (speech_file_url) {
+        await playAudio(`https://beasy.ai${speech_file_url}`);
+      }
+    } catch (error) {
+      console.error('Error sending audio to the server:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Plays the AI's audio response
   const playAudio = (audioUrl) => {
     return new Promise((resolve, reject) => {
       const audio = new Audio(audioUrl);
+      setIsPlayingAudio(true);
       audio.play().then(resolve).catch(reject);
-      audio.onended = () => resolve();
+      audio.onended = () => {
+        setIsPlayingAudio(false);
+        resolve();
+      };
     });
   };
 
-  const requestCameraAndMicrophoneAccess = () => {
-    // Vraag om toegang tot camera en microfoon als deze pagina geopend wordt
-    navigator.mediaDevices.enumerateDevices().then((devices) => {
+// Verzoek om toegang tot media-apparaten
+const requestMediaDevices = () => {
+  navigator.mediaDevices.enumerateDevices()
+    .then((devices) => {
       const videoInputDevices = devices.filter(device => device.kind === 'videoinput');
       const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
       setVideoDevices(videoInputDevices);
       setAudioDevices(audioInputDevices);
-    }).catch((err) => console.error('Error accessing media devices:', err));
-  };
+    })
+    .catch((err) => console.error('Error accessing media devices:', err));
+};
 
-  useEffect(() => {
-    if (step === 2) {
-      requestCameraAndMicrophoneAccess(); // Alleen toegang vragen wanneer de gebruiker op de camera/microfoonpagina komt
-    }
-  }, [step]);
+useEffect(() => {
+  if (step === 2) {
+    requestMediaDevices();
+  }
+}, [step]);
 
-  const toggleCamera = () => {
-    if (cameraOn) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    } else {
-      navigator.mediaDevices.getUserMedia({ video: { deviceId: selectedVideoDevice } })
-        .then((stream) => setCameraStream(stream))
-        .catch((err) => console.error('Error starting camera:', err));
-    }
-    setCameraOn(!cameraOn);
-  };
+// Camera toggle functie
+const toggleCamera = (deviceId = selectedVideoDevice) => {
+  if (cameraOn && cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop()); // Stoppen van huidige camera stream
+    setCameraStream(null);
+  } else {
+    navigator.mediaDevices.getUserMedia({ video: { deviceId } })
+      .then((stream) => {
+        setCameraStream(stream);
+        setSelectedVideoDevice(deviceId);
+      })
+      .catch((err) => console.error('Error starting camera:', err));
+  }
+  setCameraOn(!cameraOn);
+};
 
-  const toggleMicrophone = () => {
-    if (!microphoneOn) {
-      navigator.mediaDevices.getUserMedia({ audio: { deviceId: selectedAudioDevice } })
-        .then(() => setMicrophoneOn(true))
-        .catch((err) => console.error('Error starting microphone:', err));
-    } else {
-      setMicrophoneOn(false);
-    }
-  };
+// Microfoon toggle functie
+const toggleMicrophone = (deviceId = selectedAudioDevice) => {
+  if (microphoneOn && microphoneStream) {
+    microphoneStream.getTracks().forEach(track => track.stop()); // Stoppen van huidige microfoon stream
+    setMicrophoneStream(null);
+  } else {
+    navigator.mediaDevices.getUserMedia({ audio: { deviceId } })
+      .then((stream) => {
+        setMicrophoneStream(stream);
+        setSelectedAudioDevice(deviceId);
+      })
+      .catch((err) => console.error('Error starting microphone:', err));
+  }
+  setMicrophoneOn(!microphoneOn);
+};
 
+  // Step 0: Session ID entry
   const renderSessionIdStep = () => (
     <VStack spacing={4}>
       <Text fontSize="lg" color="white">Voer uw sessie-ID in om verder te gaan:</Text>
@@ -147,12 +202,7 @@ function App() {
         value={sessionId}
         onChange={(e) => setSessionId(e.target.value)}
         placeholder="Sessie-ID"
-        style={{ 
-          padding: '10px', 
-          fontSize: '16px', 
-          backgroundColor: 'black', 
-          color: 'white'
-        }}
+        style={{ padding: '10px', fontSize: '16px', backgroundColor: 'black', color: 'white' }}
       />
       <Text fontSize="lg" color="white">Of voer het master wachtwoord in voor een nieuwe sessie aan te maken:</Text>
       <input
@@ -160,92 +210,109 @@ function App() {
         placeholder="Voer wachtwoord in"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        style={{ 
-          marginBottom: '10px', 
-          fontSize: '16px', 
-          backgroundColor: 'black', 
-          color: 'white'
-        }}
+        style={{ marginBottom: '10px', fontSize: '16px', backgroundColor: 'black', color: 'white' }}
       />
       <Button colorScheme="blue" onClick={createSession} isDisabled={!password}>
         Maak Sessie aan
       </Button>
-  
+
       {sessionId && sessionIdValid && (
         <Text color="green.400">Sessie succesvol aangemaakt! Sessie-ID: {sessionId}</Text>
       )}
       {sessionIdError && <Text color="red.400">{sessionIdError}</Text>}
-  
-      <Button colorScheme="blue" onClick={validateSessionId} disabled={!sessionId}>
+
+      <Button colorScheme="blue" onClick={validateSessionId} isDisabled={!sessionId}>
         Volgende
       </Button>
     </VStack>
   );
-  
 
-  const renderTermsStep = () => (
+  // Step 1: Language selection and terms agreement
+  const renderLanguageSelectionStep = () => (
     <VStack spacing={4}>
-      <Text fontSize="lg">Lees en accepteer de algemene voorwaarden:</Text>
-      <Box bg="gray.700" p={4} rounded="md" maxH="200px" overflowY="scroll">
-        <Text>
-          Dit zijn de algemene voorwaarden en privacyregels...
-        </Text>
-      </Box>
-      <Checkbox onChange={() => setAgreedToTerms(!agreedToTerms)} isChecked={agreedToTerms}>
-        Ik ga akkoord met de regels en voorwaarden
+      <Text fontSize="lg" color="white">Selecteer uw voorkeurstaal:</Text>
+      <Select
+        value={language}
+        onChange={(e) => setLanguage(e.target.value)}
+        placeholder="Selecteer Taal"
+        style={{ padding: '10px', fontSize: '16px', backgroundColor: 'black', color: 'white' }}
+      >
+        <option value="EN">Engels</option>
+        <option value="NL">Nederlands</option>
+        <option value="FR">Frans</option>
+      </Select>
+
+      <Checkbox
+        isChecked={agreedToTerms}
+        onChange={(e) => setAgreedToTerms(e.target.checked)}
+        colorScheme="blue"
+      >
+        Ik ga akkoord met de voorwaarden
       </Checkbox>
-      <HStack>
-        <Button colorScheme="gray" onClick={() => setStep(step - 1)}>Terug</Button>
-        <Button colorScheme="blue" onClick={() => setStep(2)} disabled={!agreedToTerms}>
-          Volgende
-        </Button>
-      </HStack>
+
+      <Button colorScheme="blue" onClick={() => setStep(2)} isDisabled={!agreedToTerms || !language}>
+        Volgende
+      </Button>
     </VStack>
   );
 
-  const renderSettingsStep = () => (
+  // Step 2: Microphone and camera settings
+  const renderMediaSettingsStep = () => (
     <VStack spacing={4}>
-      <Text fontSize="lg">Kies je camera en microfoon apparaat:</Text>
+      <Text fontSize="lg" color="white">Stel uw microfoon en camera in:</Text>
 
-      <HStack>
-        <Text>Camera:</Text>
-        <Select value={selectedVideoDevice} onChange={(e) => setSelectedVideoDevice(e.target.value)}>
-          {videoDevices.map(device => (
-            <option key={device.deviceId} value={device.deviceId}>
-              {device.label || `Camera ${device.deviceId}`}
-            </option>
-          ))}
-        </Select>
-        <Button onClick={toggleCamera} colorScheme={cameraOn ? 'green' : 'red'}>
-          {cameraOn ? 'Camera Uit' : 'Camera Aan'}
-        </Button>
-      </HStack>
+      <Text color="white">Selecteer uw audio-apparaat:</Text>
+      <Select
+        placeholder="Kies audio-ingang"
+        value={selectedAudioDevice}
+        onChange={(e) => toggleMicrophone(e.target.value)}
+        style={{ padding: '10px', fontSize: '16px', backgroundColor: 'black', color: 'white' }}
+      >
+        {audioDevices.map((device) => (
+          <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+        ))}
+      </Select>
+
+      <Text color="white">Selecteer uw video-apparaat:</Text>
+      <Select
+        placeholder="Kies video-ingang"
+        value={selectedVideoDevice}
+        onChange={(e) => toggleCamera(e.target.value)}
+        style={{ padding: '10px', fontSize: '16px', backgroundColor: 'black', color: 'white' }}
+      >
+        {videoDevices.map((device) => (
+          <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+        ))}
+      </Select>
 
       {cameraOn && cameraStream && (
-        <video autoPlay muted playsInline style={{ width: '200px', height: '150px' }} ref={(video) => {
-          if (video) {
-            video.srcObject = cameraStream;
-          }
-        }} />
+        <Box borderRadius="md" overflow="hidden">
+          <video
+            style={{ maxWidth: '100%', maxHeight: '300px' }}
+            ref={(videoElement) => {
+              if (videoElement) {
+                videoElement.srcObject = cameraStream;
+              }
+            }}
+            autoPlay
+            playsInline
+          />
+        </Box>
       )}
 
-      <HStack>
-        <Text>Microfoon:</Text>
-        <Select value={selectedAudioDevice} onChange={(e) => setSelectedAudioDevice(e.target.value)}>
-          {audioDevices.map(device => (
-            <option key={device.deviceId} value={device.deviceId}>
-              {device.label || `Microfoon ${device.deviceId}`}
-            </option>
-          ))}
-        </Select>
-        <IconButton
-          aria-label="Toggle microphone"
-          icon={<FaMicrophone />}
+      <HStack spacing={4}>
+        <Button
+          colorScheme={cameraOn ? 'green' : 'red'}
+          onClick={() => toggleCamera(selectedVideoDevice)}
+        >
+          {cameraOn ? 'Zet camera uit' : 'Zet camera aan'}
+        </Button>
+        <Button
           colorScheme={microphoneOn ? 'green' : 'red'}
-          onClick={toggleMicrophone}
-        />
+          onClick={() => toggleMicrophone(selectedAudioDevice)}
+        >{microphoneOn ? 'Zet microfoon uit' : 'Zet microfoon aan'}
+        </Button>
       </HStack>
-
       <HStack>
         <Button colorScheme="gray" onClick={() => setStep(step - 1)}>Terug</Button>
         <Button colorScheme="blue" onClick={() => setStep(3)} disabled={!cameraOn && !microphoneOn}>
@@ -254,48 +321,89 @@ function App() {
       </HStack>
     </VStack>
   );
-
-  const renderInterviewStep = () => (
+  // Step 3: Conversation view
+  const renderConversationStep = () => (
     <VStack spacing={4}>
-      <Text fontSize="lg">Het interview is gestart:</Text>
-      <Button colorScheme="blue" onClick={startConversation} disabled={conversationStarted || isProcessing}>
-        Start Gesprek
-      </Button>
-      {aiResponse && <Text>AI Vraag: {aiResponse}</Text>}
-      {conversationFinished && (
-        <>
-          <Text>Het gesprek is afgelopen. Download het gespreksverslag hieronder:</Text>
-          <Button as="a" href={summaryFileUrl} download="summary.txt" colorScheme="green">
-            Download Samenvatting
-          </Button>
-        </>
+      {cameraOn && (
+        <Box borderRadius="md" overflow="hidden">
+          <video
+            style={{ maxWidth: '100%', maxHeight: '200px' }}
+            autoPlay
+            playsInline
+            ref={(videoElement) => {
+              if (videoElement && cameraStream) {
+                videoElement.srcObject = cameraStream;
+              }
+            }}
+          />
+        </Box>
       )}
-      {!conversationFinished && conversationStarted && (
-        <Button colorScheme="red" onClick={stopConversation}>Stop Gesprek</Button>
+      <Text fontSize="lg" color="white">AI Interview</Text>
+
+      {aiResponse ? (
+        <Box p={4} borderWidth="1px" borderRadius="md">
+          <Text fontSize="md" color="white">{aiResponse}</Text>
+        </Box>
+      ) : (
+        <Text fontSize="md" color="white">Wacht op de AI...</Text>
+      )}
+
+      <ReactMediaRecorder
+        audio
+        onStop={async (blobUrl, blob) => {
+          if (!blob) return;
+          setIsRecording(false);
+          await handleSendAudio(blob);
+        }}
+        render={({ startRecording, stopRecording, mediaBlobUrl }) => (
+          <Button
+            colorScheme={isRecording ? "red" : "green"}
+            onClick={() => {
+              if (isRecording) {
+                stopRecording();
+              } else {
+                startRecording();
+                setIsRecording(true);
+              }
+            }}
+            isDisabled={isProcessing || isPlayingAudio}
+          >
+            {isRecording ? 'Stop opnamen' : 'Start opnamen'}
+          </Button>
+        )}
+      />
+
+      {conversationStarted ? (
+        <Button colorScheme="blue" onClick={stopConversation} isDisabled={conversationFinished}>
+          Stop Gesprek
+        </Button>
+      ) : (
+        <Button colorScheme="blue" onClick={startConversation}>
+          Start Gesprek
+        </Button>
+      )}
+
+      {conversationFinished && (
+        <Text fontSize="md" color="green.300">Gesprek voltooid! Download samenvatting <a href={summaryFileUrl} download>hier</a>.</Text>
       )}
     </VStack>
   );
 
-  const renderStepContent = () => {
-    switch (step) {
-      case 0:
-        return renderSessionIdStep();
-      case 1:
-        return renderTermsStep();
-      case 2:
-        return renderSettingsStep();
-      case 3:
-        return renderInterviewStep();
-      default:
-        return <Text>Error: Ongeldige stap</Text>;
-    }
-  };
-
   return (
     <ChakraProvider>
-      <Flex direction="column" align="center" justify="center" minH="100vh" bg="gray.900" color="white">
-        <Box p={8} maxW="500px" bg="gray.800" rounded="md" shadow="lg">
-          {renderStepContent()}
+      <Flex minH="100vh" align="center" justify="center" bg="gray.900">
+        <Box
+          bg="gray.800"
+          p={8}
+          rounded="lg"
+          boxShadow="lg"
+          maxW="lg"
+          w="100%"
+        >
+          {step === 0 && renderSessionIdStep()}
+          {step === 1 && renderLanguageSelectionStep()}
+          {step === 2 && renderMediaSettingsStep()}
+          {step === 3 && renderConversationStep()}
         </Box>
       </Flex>
     </ChakraProvider>
